@@ -1,0 +1,550 @@
+<link rel="import" href="../elements/app-layout.html">
+<link rel="import" href="../elements/awall-menu.html">
+
+<polymer-element name="layout-workspace" extends="app-layout">
+    <template>
+        <style>
+            #container {
+                display: flex;
+                flex-direction: column;
+            }
+
+            header, footer {
+                color: white;
+                padding: 1em;
+                background-color: #000000;
+            }
+
+            header {
+                display: none;
+            }
+
+            footer {
+                position: fixed;
+                Width: 100%;
+                bottom: 0;
+                background-color: #f2f2f2;
+                height: 3em;
+                z-index: 200;
+            }
+
+            #body {
+                flex: 1;
+                padding: 0.3em;
+                display: flex;
+                flex-direction: column;
+                margin-bottom: 4em;
+            }
+
+            #widgets {
+                display: flex;
+            }
+			
+			.widgetDropzone {
+                height: 100%;
+                background-color: rgba(242,242,242,  0.5) !important;
+                border: 2px solid #000000;
+                box-sizing: border-box;
+                overflow: auto;
+                position: relative;
+            }
+			
+			#widgetDropzonemain {
+				color:#FFF;
+			}
+						#widget:last-child {
+                height: 100%;
+                border: 2px solid #000000;
+                box-sizing: border-box;
+                overflow: auto;
+                position: relative;
+				background-color: transparent !important;
+    border: 1px solid #FFF!important;
+    color: #FFF !important;
+            }
+
+            .widgetDropzone {
+                flex: 1 1 10%;
+                margin-right: 0.3em;
+                margin-bottom: 0.3em;
+                height: 13em;
+                box-sizing: border-box;
+                position: relative;
+            }
+
+            @media only screen and (max-height: 40rem) {
+                .widgetDropzone {
+                    height: 3.5em;
+                }
+            }
+
+			
+            .hidden {
+                display: none;
+            }
+
+            a {
+                color: white;
+                padding: 0 1em;
+            }
+
+            #floatingWidgetContainer {
+                height: 0;
+                width: 0;
+            }
+			
+
+        </style>
+        <div id="container">
+            <header>HEADER</header>
+            <div id="body">
+                <div id="widgets">
+                    <div id="floatingWidgetContainer"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone1"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone2"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone3"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone4"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone5"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone6"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone7"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone8"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone9"></div>
+                    <div class="widgetDropzone hidden" id="widgetDropzone10"></div>
+                    <awall-menu id="menu"></awall-menu>
+                </div>
+                <div id="widgetDropzonemain"></div>
+            </div>
+
+            <template if="{{!$.globals.isSmallScreenHeight}}">
+                <footer>
+                    <template repeat="{{workspace in $.globals.workspaces}}">
+                        <!--
+                        add the menu buttons to the footer menu.
+                        image files must be named according to workspace naming and have extension png.
+                        -->
+                        <a href="{{workspace.parsedPath}}">
+                            <img src="../images/{{workspace.name}}.png" height="50">
+                        </a>
+
+                    </template>
+                </footer>
+            </template>
+        </div>
+        <app-core id="globals"></app-core>
+    </template>
+    <script>
+        (function () {
+
+            /**
+             * Represents a widget dropzone.
+             */
+            function WidgetDropzone(position, dropzoneElement) {
+                this.position = position;
+                this.dropzoneElement = dropzoneElement;
+                this.widget = null;
+                this.flexBasisDefault = 10;
+
+                // create container for the active widget
+                this.container = document.createElement('div');
+                this.container.setAttribute('id', 'container' + this.position);
+                this.container.style.height = '100%';
+                this.dropzoneElement.appendChild(this.container);
+            }
+
+            WidgetDropzone.prototype.hide = function () {
+                this.dropzoneElement.classList.add('hidden');
+            };
+
+            WidgetDropzone.prototype.show = function () {
+                this.dropzoneElement.classList.remove('hidden');
+            };
+
+            WidgetDropzone.prototype.add = function (widget) {
+                var widgetContainerId = 'widgetContainer_' + widget.id;
+
+                if (widget.view.id != widgetContainerId) {
+                    // create container with shadow root and add the view
+                    var container = document.createElement('div');
+                    container.setAttribute('id', widgetContainerId);
+                    var root = container.createShadowRoot();
+                    container.style.height = '100%';
+                    var widgetView = document.importNode(widget.view, true);
+                    root.appendChild(widgetView);
+                    widget.view = container;
+
+                    // set widget as attribute to the draggable with id='widget'
+                    var shadowRoot = root.children[0].shadowRoot;
+                    var widgetElement = shadowRoot.getElementById('widget');
+                    if (!widgetElement) {
+                        // awall-widget is used in another enclosing element.
+                        widgetElement = shadowRoot.querySelectorAll('awall-widget')[0].shadowRoot.getElementById('widget');
+                    }
+                    if (!widgetElement) {
+                        console.error('Widget element not found');
+                    }
+                    widgetElement.widget = widget;
+                }
+
+                this.container.appendChild(widget.view);
+
+                this.widget = widget;
+                // set position of widget
+                this.widget.position = this.position;
+            };
+
+            WidgetDropzone.prototype.adjustFlexBasis = function() {
+                // adjust the width of the widget
+                // widget may be max. 50% of width
+                var widgetWidth = 1;
+                if(this.hasWidget()) {
+                    widgetWidth = this.widget.width > 5 ? 5 : this.widget.width;
+                }
+                this.dropzoneElement.style.flexBasis = (this.flexBasisDefault * widgetWidth) + '%';
+            };
+
+            WidgetDropzone.prototype.hasWidget = function () {
+                return this.container.children.length > 0;
+            };
+
+            WidgetDropzone.prototype.remove = function () {
+                this.container.removeChild(this.container.children[0]);
+                // reset flexBasis to width of 1
+                this.dropzoneElement.style.flexBasis = this.flexBasisDefault + '%';
+
+                var returnValue = this.widget;
+                returnValue.position += 10;
+                this.widget = null;
+                return returnValue;
+            };
+
+            /**
+             * Manages the dropzones
+             */
+            function DropzoneManager(dropzones, widgets, floatingWidgetContainer) {
+                this.dropzones = dropzones || [];
+                this.widgets = widgets || [];
+                this.floatingWidgetContainer = floatingWidgetContainer;
+                this.widgetsToDisplay = 0;
+
+                // sort widgets
+                this.widgets = this.widgets.filter(function (widget) {
+                    return widget.position !== 'main';
+                }).sort(function (a, b) {
+                    return a.position >= b.position ? 1 : -1;
+                });
+
+                // add all widgets to a dropzone, honor hidden attribute
+                for (var di = 0, wi = 0; wi < this.widgets.length; wi++) {
+                    if (wi >= this.dropzones.length - 1) {
+                        break;
+                    }
+                    var widget = this.widgets[wi];
+                    if (!widget.hidden) {
+                        var dropzone = this.dropzones[di];
+                        dropzone.add(widget);
+                        di += 1;
+                    }
+                }
+            }
+
+            DropzoneManager.prototype.setWidgetsToDisplay = function (widgetsToDisplay) {
+                //FIXME: What are these for?
+                var oldVal = this.widgetsToDisplay;
+                var newVal = widgetsToDisplay;
+                this.widgetsToDisplay = widgetsToDisplay;
+
+
+
+                this.evaluateWidgetsToShow();
+            };
+
+            DropzoneManager.prototype.adjustFlexBasis = function() {
+                var flexBasis = 100 / this.widgetsToDisplay;
+                this.dropzones.forEach(function (dz) {
+                    dz.flexBasisDefault = flexBasis;
+                    dz.adjustFlexBasis();
+                });
+            };
+
+            DropzoneManager.prototype.evaluateWidgetsToShow = function (widgetSizeChanged) {
+                var maxWidth = this.widgetsToDisplay;
+                var sumWidgetWidth = 0;
+                for (var i = 0; i < this.dropzones.length; i++) {
+                    var dropzone = this.dropzones[i];
+                    var nextWidth = dropzone.hasWidget() ? dropzone.widget.width : 1;
+                    var newSumWidth = nextWidth + sumWidgetWidth;
+                    console.log('computing width of shown widgets');
+                    console.log('current: ' + sumWidgetWidth + ' newSum: ' + newSumWidth);
+                    if (newSumWidth <= maxWidth) {
+                        sumWidgetWidth = newSumWidth;
+                        dropzone.show();
+                        if (dropzone.hasWidget()) {
+                            this.lastVisibleDropzone = dropzone;
+                            if (widgetSizeChanged) {
+                                dropzone.widget.hidden = false;
+                            }
+                        }
+                    } else {
+                        dropzone.hide();
+                        if (widgetSizeChanged && dropzone.hasWidget()) {
+                            dropzone.widget.hidden = true;
+                        }
+                    }
+                }
+                console.log('last visible at ' + this.lastVisibleDropzone.position);
+
+                this.adjustFlexBasis();
+            };
+
+            DropzoneManager.prototype.undock = function (dropzonePosition) {
+                var dropzone = this.dropzones[dropzonePosition - 1];
+                if (dropzone.hasWidget()) {
+                    var widget = dropzone.remove();
+                    this.floatingWidgetContainer.appendChild(widget.view);
+                    this.moveRightToLeft(dropzonePosition);
+                }
+
+                this.evaluateWidgetsToShow();
+            };
+
+            DropzoneManager.prototype.moveRightToLeft = function (startPos) {
+                for (var i = startPos - 1; i < this.dropzones.length - 1; i++) {
+                    var right = this.dropzones[i + 1];
+                    var left = this.dropzones[i];
+
+                    if (right.hasWidget()) {
+                        var widgetForLeft = right.remove();
+                        left.add(widgetForLeft);
+                    }
+                }
+            };
+
+            DropzoneManager.prototype.moveLeftToRight = function (startPos) {
+                for (var i = this.dropzones.length - 1; i >= startPos; i--) {
+                    var right = this.dropzones[i];
+                    var left = this.dropzones[i - 1];
+
+                    if (right.hasWidget()) {
+                        right.remove();
+                    }
+                    if (left.hasWidget()) {
+                        var removedWidget = left.remove();
+                        right.add(removedWidget);
+                    }
+                }
+            };
+
+            DropzoneManager.prototype.dock = function (dropzonePosition, widget) {
+                dropzonePosition = Math.max(1, dropzonePosition);
+                var dropzone = this.dropzones[dropzonePosition - 1];
+
+                console.log('last visible at ' + this.lastVisibleDropzone.position + ' insert at ' + dropzonePosition);
+                var inBetweenLower = this.lastVisibleDropzone.position;
+                var lastWidgetWidth = this.lastVisibleDropzone.hasWidget() ? this.lastVisibleDropzone.widget.width : 1;
+                var inBetweenHigher = inBetweenLower + lastWidgetWidth;
+                if (dropzonePosition >= inBetweenLower && dropzonePosition < inBetweenHigher) {
+                    console.log('in between');
+                    dropzone = this.lastVisibleDropzone;
+                }
+
+
+                if (dropzone.hasWidget() && dropzone.widget.id != widget.id) {
+                    this.moveLeftToRight(dropzonePosition);
+                }
+
+                var firstDropzone = this.findFirstEmptyAndWithoutWidget(widget);
+                if (firstDropzone && firstDropzone.position < dropzone.position) {
+                    console.log('found first empty at ' + firstDropzone.position);
+                    dropzone = firstDropzone;
+                }
+
+                this.removeFloating(widget);
+                dropzone.add(widget);
+
+                this.evaluateWidgetsToShow();
+            };
+
+            DropzoneManager.prototype.findFirstEmptyAndWithoutWidget = function (widget) {
+                for (var i = 0; i < this.dropzones.length; i++) {
+                    var dropzone = this.dropzones[i];
+                    if (!dropzone.hasWidget() || (dropzone.hasWidget() && dropzone.widget.id == widget.id)) {
+                        return dropzone;
+                    }
+                }
+            };
+
+            DropzoneManager.prototype.removeFloating = function (widget) {
+                for (var i = 0; i < this.floatingWidgetContainer.children.length; i++) {
+                    var child = this.floatingWidgetContainer.children[i];
+                    if (child.getAttribute('id') == 'widgetContainer_' + widget.id) {
+                        widget.wasFloating = true;
+                        this.floatingWidgetContainer.removeChild(child);
+                    }
+                }
+            };
+
+            DropzoneManager.prototype.hideWidget = function (widget) {
+                var hideDropzone = null;
+                for (var i = 0; i < this.dropzones.length; i++) {
+                    var dropzone = this.dropzones[i];
+                    if (dropzone.hasWidget() && dropzone.widget.id == widget.id) {
+                        hideDropzone = dropzone;
+                        break;
+                    }
+                }
+                if (!hideDropzone) {
+                    // if not active, it may be floating
+                    this.removeFloating(widget);
+                }
+
+                hideDropzone.remove();
+                this.moveRightToLeft(hideDropzone.position);
+                widget.hidden = true;
+
+                this.evaluateWidgetsToShow();
+            };
+
+            DropzoneManager.prototype.showWidget = function (widget) {
+                if (widget.wasFloating) {
+                    this.floatingWidgetContainer.appendChild(widget.view);
+                } else {
+                    var dzIndex = 0;
+                    for (var i = 0; i < this.dropzones.length; i++) {
+                        var dropzone = this.dropzones[i];
+                        if (dropzone.hasWidget()) {
+                            var nextDzIndex = dzIndex + dropzone.widget.width;
+                            if (nextDzIndex >= this.widgetsToDisplay) {
+                                break;
+                            }
+                            dzIndex = nextDzIndex;
+                        }
+                    }
+                    // round up the index because the width of widgets can be a float
+                    dzIndex = Math.ceil(dzIndex);
+                    // ensure index is at least 1 for the following array operation
+                    dzIndex = Math.max(1, dzIndex);
+                    var showDropzone = this.dropzones[dzIndex - 1];
+                    var emptyDropzone = this.findFirstEmptyAndWithoutWidget(widget);
+                    if (emptyDropzone.position < showDropzone.position) {
+                        showDropzone = emptyDropzone;
+                    }
+                    this.moveLeftToRight(showDropzone.position);
+                    showDropzone.add(widget);
+                }
+                this.evaluateWidgetsToShow();
+            };
+
+
+            Polymer(Polymer.mixin({
+                /**
+                 * List of added widgets.
+                 */
+                widgets: [],
+                /**
+                 * Minimal widget size in pixel.
+                 */
+                minWidgetWidthInPx: 300,
+                /**
+                 * Number of widgets that can be comfortably displayed.
+                 */
+                widgetsToDisplay: 0,
+                /**
+                 * Maximum number of widgets that can be shown.
+                 * Should match the number of dropzones in the DOM-tree.
+                 */
+                maxWidgetsToDisplay: 10,
+                /**
+                 * Called when widgetsToDispaly changes.
+                 * Recalculates which widgets should be shown.
+                 */
+                widgetsToDisplayChanged: function (oldVal, newVal) {
+                    this.dropzoneManager.setWidgetsToDisplay(newVal);
+                },
+                /**
+                 * Calculates the number of widgets to display.
+                 * Sets widgetsToDisplay variable if it has changed.
+                 */
+                evaluateWidgetsToDisplay: function () {
+                    var availableWidgetWidth = this.$.widgets.clientWidth - this.$.menu.clientWidth;
+                    var newWidgetsToDisplay = Math.floor(availableWidgetWidth / this.minWidgetWidthInPx);
+                    newWidgetsToDisplay = Math.max(newWidgetsToDisplay, 1);
+                    if (newWidgetsToDisplay !== this.widgetsToDisplay) {
+                        this.widgetsToDisplay = newWidgetsToDisplay;
+                    }
+                },
+                domReady: function () {
+                    // dropzone callbacks
+                    var onleave = function (e) {
+                        this.dropzoneManager.undock(e.data.position);
+                    }.bind(this);
+
+                    var onenter = function (e) {
+                        this.dropzoneManager.dock(e.data.position, e.draggableElement.widget);
+                    }.bind(this);
+
+                    var ondrop = function (e) {
+//                        this.dropzoneManager.evaluateWidgetsToShow(); //FIXME: Why is this commented out?
+                    }.bind(this);
+
+                    var dropzones = [];
+                    for (var i = 1; i <= this.maxWidgetsToDisplay; i++) {
+                        var dropzoneElement = this.$['widgetDropzone' + i];
+                        var widgetDropzone = new WidgetDropzone(i, dropzoneElement);
+                        dropzones.push(widgetDropzone);
+
+                        // activate dropzone
+                        this.touch.makeDropzone(dropzoneElement, {
+                            accept: '.widget',
+                            data: widgetDropzone,
+                            onleave: onleave,
+                            onenter: onenter,
+                            ondrop: ondrop
+                        });
+                    }
+
+                    this.dropzoneManager = new DropzoneManager(dropzones, this.widgets, this.$.floatingWidgetContainer);
+
+
+                    this.evaluateWidgetsToDisplay();
+                    // add resize listener (called every time the browser window is resized)
+                    window.addEventListener('resize', this.evaluateWidgetsToDisplay.bind(this));
+                    console.debug('added resize listener');
+                },
+                created: function () {
+                    this.widgets = [];
+                },
+                addWidget: function (widget) {
+                    this.widgets.push(widget);
+
+                    if (widget.position === 'main') {
+                        var targetId = 'widgetDropzone' + widget.position;
+                        var targetView = this.$[targetId];
+
+                        if (targetView === null) {
+                            console.error('No element with the ID ' + targetId + ' exists, cannot add widget ' + widget.id);
+                            return;
+                        }
+
+                        this.setView(targetId, widget.view);
+                    }
+                },
+                hideWidget: function (widget) {
+                    if (widget.position === 'main') {
+                        return;
+                    }
+                    this.dropzoneManager.hideWidget(widget);
+                },
+                showWidget: function (widget) {
+                    if (widget.position === 'main') {
+                        return;
+                    }
+                    this.dropzoneManager.showWidget(widget);
+                },
+                dock: function (widget) {
+                    console.log('position: ' + widget.position);
+                    this.dropzoneManager.dock(widget.position - 10, widget);
+                }
+            }, window.appMixin));
+        })();
+    </script>
+</polymer-element>

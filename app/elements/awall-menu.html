@@ -1,0 +1,148 @@
+<link rel="import" href="../bower_components/core-menu-button/core-menu-button.html">
+<link rel="import" href="../bower_components/core-icon-button/core-icon-button.html">
+<link rel="import" href="../bower_components/core-dropdown/core-dropdown.html">
+<link rel="import" href="../bower_components/paper-toggle-button/paper-toggle-button.html">
+
+<link rel="import" href="app-core.html">
+
+<polymer-element name="awall-menu">
+    <template>
+        <style>
+            #menu, core-dropdown {
+                background-color: #f2f2f2;
+                border: 2px solid #000000;
+                margin: 0;
+            }
+
+            core-dropdown {
+                z-index: 200;
+                min-width: 20em;
+            }
+
+            #menuContent {
+                padding: 0.2em 1em;
+            }
+
+            #workspaceOperations {
+                padding-top: 0.2em;
+                display: block;
+            }
+
+            #close {
+                float: right;
+            }
+
+            a {
+                text-decoration: none;
+            }
+
+            a:hover {
+                font-weight: bold;
+                text-decoration: underline;
+                color: green;
+            }
+
+            ul {
+                padding: 0;
+            }
+
+            li {
+                margin: 0;
+                list-style: none;
+            }
+
+            li, awall-menu-widget-toggle::shadow .toggle {
+                padding: 0.75em 0.2em;
+            }
+
+        </style>
+        <core-menu-button id="menuButton">
+            <core-icon-button icon="menu" id="menu"></core-icon-button>
+            <core-dropdown class="dropdown" halign="right" backdrop autoCloseDisabled closeSelector="#close">
+                <core-icon-button icon="close" id="close"></core-icon-button>
+                <div id="menuContent">
+
+                    <div id="workspaceOperations">
+                        <core-icon-button icon="save" on-tap="{{onSaveWorkspace}}"></core-icon-button>
+                        <core-icon-button icon="restore" on-tap="{{onResetWorkspace}}"
+                                          hidden?="{{!workspaceSaved}}"></core-icon-button>
+                    </div>
+
+                    <h3>Widgets</h3>
+                    <template repeat="{{widget in $.globals.activeWorkspace.widgets}}">
+                        <awall-menu-widget-toggle widget="{{widget}}"
+                                                  layout="{{$.globals.activeWorkspace.layout}}"></awall-menu-widget-toggle>
+                    </template>
+
+                    <template if="{{$.globals.isSmallScreenHeight}}">
+                        <h3>Workspaces</h3>
+                        <ul>
+                            <template repeat="{{workspace in $.globals.workspaces}}">
+                                <a href="{{workspace.parsedPath}}" on-click="{{onWorkspaceChange}}">
+                                    <li>{{workspace.name}}</li>
+                                </a>
+                            </template>
+                        </ul>
+                    </template>
+                    <p><!-- Fixes a scroll issue when the workspaces are hidden --> </p>
+                    <app-core id="globals"></app-core>
+                </div>
+            </core-dropdown>
+        </core-menu-button>
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            domReady: function () {
+                this.workspaceSaved = this.core.isWorkspaceSaved();
+            },
+            closeMenu: function() {
+                // close the menu so the rest of the viewport is not backdropped on the next workspace.
+                this.$.menuButton.opened = false;
+            },
+            onWorkspaceChange: function() {
+                this.closeMenu();
+            },
+            onSaveWorkspace: function () {
+                this.closeMenu();
+                this.workspaceSaved = this.core.saveActiveWorkspace();
+            },
+            onResetWorkspace: function () {
+                this.closeMenu();
+                this.workspaceSaved = this.core.resetActiveWorkspace();
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>
+
+
+<polymer-element name="awall-menu-widget-toggle">
+    <template>
+        <div center horizontal layout class="toggle">
+            <div flex>{{widget.name}}</div>
+            <paper-toggle-button checked?="{{!widget.hidden}}" on-tap="{{onTap}}"
+                                 on-change="{{onChange}}"></paper-toggle-button>
+        </div>
+    </template>
+    <script>
+        Polymer({
+            publish: {
+                widget: undefined,
+                layout: undefined,
+                onChange: undefined
+            },
+            onTap: function (event) {
+                // stop propagation of the event so the dropdown does not close
+                event.stopPropagation();
+            },
+            onChange: function () {
+                this.widget.hidden = !this.widget.hidden;
+                var layoutDoc = this.layout.document;
+                if (this.widget.hidden) {
+                    layoutDoc.hideWidget(this.widget);
+                } else {
+                    layoutDoc.showWidget(this.widget);
+                }
+            }
+        });
+    </script>
+</polymer-element>

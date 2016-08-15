@@ -1,0 +1,144 @@
+<template class="content">
+    <awall-taskboard></awall-taskboard>
+</template>
+
+<polymer-element name="awall-taskboard">
+    <template>
+        <style>
+            table {
+                border-collapse: collapse;
+                box-sizing: border-box;
+                margin-bottom: 0.8em;
+                width: 100%;
+            }
+			
+			#widget {
+                height: 100%;
+                border: 2px solid #000000;
+                box-sizing: border-box;
+                overflow: auto;
+                position: relative;
+				background-color: transparent !important;
+    border: 1px solid #FFF!important;
+    color: #FFF !important;
+            }
+			
+            tr:nth-child(even) {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+
+            th {
+                border-bottom: 2px solid rgb(221, 221, 221);
+                border-collapse: collapse;
+                text-align: left;
+            }
+
+            td {
+                border-top: 1px solid rgb(221, 221, 221);
+                vertical-align: top;
+            }
+
+            td:nth-child(1) {
+                padding: 0.6em;
+                text-align: left;
+                width: 16em;
+            }
+
+            h3 {
+                font-weight: normal;
+            }
+        </style>
+        <awall-widget noDrag noResize>
+            <h2>Taskboard</h2>
+
+            <core-icon-button icon="add" on-tap="{{addUserStoryTabHandler}}">Add User Story</core-icon-button>
+            <awall-form-userstory id="usForm"></awall-form-userstory>
+
+            <table class="table">
+                <thead>
+                <tr>
+                    <th></th>
+                    <template repeat="{{state in boardWorkflow | sortStates}}">
+                        <th><h3>{{state.name}}</h3></th>
+                    </template>
+                </tr>
+                </thead>
+                <tbody>
+                <template repeat="{{userstory in userstories | orderBy('priority')}}">
+                    <tr>
+                        <td class="story-column">
+                            <awall-userstorycard userstory="{{userstory}}" noDrag></awall-userstorycard>
+                        </td>
+                        <template repeat="{{state in boardWorkflow | sortStates}}">
+                            <td is="awall-tb-tasks" taskstate="{{state}}"
+                                userstoryId="{{userstory.id}}"></td>
+                        </template>
+                    </tr>
+                </template>
+                </tbody>
+            </table>
+        </awall-widget>
+        <app-core id="globals"></app-core>
+        <ads-rest-userstories id="usRest" sprintId="{{sprintId}}" projectId="{{projectId}}"
+                              response="{{userstories}}"></ads-rest-userstories>
+        <ads-rest-taskstates id="statesRest" projectId="{{projectId}}" response="{{taskstates}}"></ads-rest-taskstates>
+        <ads-rest-boardWorkflow id="boardWorkflow" projectId="{{projectId}}" response="{{boardWorkflow}}"></ads-rest-boardWorkflow>
+    </template>
+    <script>
+        Polymer({
+            ready: function () {
+                this.projectId = this.$.globals.routeParams.projectId;
+                this.sprintId = this.$.globals.routeParams.sprintId;
+                this.$.usRest.go();
+                this.$.statesRest.go();
+                this.$.boardWorkflow.go();
+                this.addEventListener('state changed', function(){
+                    this.$.usRest.go();
+                })
+            },
+            addUserStoryTabHandler: function () {
+                this.$.usForm.open();
+            },
+            sortStates: function (values) {
+                if (values != null) {
+                    return values.sort(function (a, b) {
+                        return a.id > b.id ? 1 : -1;
+                    });
+                }
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-tb-tasks" extends="td">
+    <template>
+        <template repeat="{{task in tasks}}">
+            <awall-taskcard task="{{task}}"></awall-taskcard>
+        </template>
+
+        <template repeat="{{state in taskstate.mergedStates}}">
+            <ads-rest-tasks userStoryId="{{userstoryId}}" stateId="{{state.id}}" response="{{tasks}}"
+                            auto expand="all"></ads-rest-tasks>
+        </template>
+        <ads-rest-task id="rest"></ads-rest-task>
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            publish: {
+                taskstate: {},
+                userstoryId: 0
+            },
+            attached: function () {
+                this.touch.makeDropzone(this, {
+                    accept: '.taskcard',
+                    ondrop: function (e) {
+                        this.fire('state changed', {sender: e.draggableData});
+                        var task = e.draggableData;
+                        task.state = this.taskstate;
+                        this.$.rest.save(task);
+                    }.bind(this)
+                })
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>

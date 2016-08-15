@@ -1,0 +1,31 @@
+{
+  "name": "Taskboard Workspace",
+  "description": "",
+  "path": "/project/:projectId/sprint/:sprintId/taskboard",
+  "layout": "workspace",
+  "widgets": {
+    "taskboard": {
+      "position": "main"
+    },
+    "teamview": {
+      "position": 1,
+      "width": 1,
+      "hidden": false
+    },
+    "sprintinfo": {
+      "position": 2,
+      "width": 1,
+      "hidden": false
+    },
+    "definitionofdone": {
+      "position": 3,
+      "width": 1,
+      "hidden": false
+    },
+    "vtr": {
+      "position": 4,
+      "width": 1,
+      "hidden": false
+    }
+  }
+}

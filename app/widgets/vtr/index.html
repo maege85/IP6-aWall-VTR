@@ -1,0 +1,278 @@
+<template class="content">
+	<awall-widget>
+		<awall-widget-title value="Virtual Team Room"></awall-widget-title>
+		<awall-widget-size-default>
+		
+			<div id="message" style="padding-left:18px;">Connected Users: 0 </div>
+
+			<div id="roomElements" style="display: block; width: 80%; text-align: center; margin: 20px auto;">
+				<input type="button" id="enterRoomButton" onclick="enterRoom()" value="Connect VTR" style="background: white; border: black solid 1px; color: black; font-weight: 600; letter-spacing: 1px; cursor: pointer;"/>
+				</div>
+
+				<div id="videoControlElements" style="display: none; width: 80%; text-align: center; margin: 13px auto;">
+					<input type="button" id="hangupButton" onclick="hangup()" value="Disconnect VTR" style="background: white; border: black solid 1px; color: black; font-weight: 600; letter-spacing: 1px; cursor: pointer;"/>
+					<video id="localVideo"  autoplay controls class="localVideo" style="width: 100px; padding-top: 12px; left: 17px; position: absolute;"/>  
+				</div>
+			</awall-widget-size-default>
+		</awall-widget>
+	</template>
+
+<script>
+	var ROOM_NAME ="Room1";
+	var SOCKET_URL = 'https://server1095.cs.technik.fhnw.ch';
+	var SOCKET_PATH = '/vroom/socket.io';
+	var socket;
+	'use strict';
+    var isChannelReady;
+    var isInitiator = false;
+    var isStarted = false;
+	var isSocketConnected = false;
+    var localStream;
+    var pc;
+    var remoteStream;
+    var turnReady;
+    var sdpConstraints = {'mandatory': {'OfferToReceiveAudio':true, 'OfferToReceiveVideo':true}};
+    window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+    window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
+    window.RTCSessionDescription = window.RTCSessionDescription || window.mozRTCSessionDescription || window.webkitRTCSessionDescription;
+    window.navigator.getUserMedia = window.navigator.getUserMedia || window.navigator.mozGetUserMedia || window.navigator.webkitGetUserMedia;
+    window.URL = window.URL || window.mozURL || window.webkitURL;
+    var localVideo;
+    var remoteVideo;
+	var isClosed = false;
+    var constraints = {audio: true, video: true};
+
+	window.onbeforeunload = function (e) {
+     hangup();
+    }
+	
+	window.setInterval(function(){
+		connect();
+		var data = {room:ROOM_NAME}; 
+		socket.emit("getMembers",data);
+	}, 3000);
+
+
+/********************* Functions ***********************************************/
+
+	function connect(){
+		if(isSocketConnected == false){
+			var currentUrl = window.location.href;
+			var project = currentUrl.split("project/");
+			project = project[1].split("/")[0];
+			console.log("project=" + project);
+			ROOM_NAME = project;
+			socket= io.connect(SOCKET_URL, {path: SOCKET_PATH});
+
+			socket.on('created', function (data) {
+				console.log('Created room ' + data.room);
+				isInitiator = true;
+				showMessage("Waiting for participant...");
+			});
+			socket.on('join', function (data) {
+				console.log('Another peer made a request to join room ' + data.room);
+				console.log('This peer is the initiator of room ' + data.room + '!');
+				isChannelReady = true;
+				showMessage("");
+			});
+			socket.on('joined', function (room) {
+				console.log('This peer has joined room ' + room);
+				isChannelReady = true;
+				showMessage("");
+			});
+
+			socket.on('roomInfos', function (data) {
+				if(isStarted == false && isInitiator == false){
+					if(typeof data != 'undefined' && data != null){
+					showMessage("Connected Users: " + data.connectedCount);
+					}
+					else{
+						showMessage("Connected Users: 0" );
+					}
+				}
+			});
+			
+			socket.on('log', function (message){
+			  console.log(message);
+			});
+
+
+			socket.on('message', function (message) {
+				console.log('Client received message:', message);
+				if (message === 'got user media') {
+					maybeStart();
+				} else if (message.type === 'offer') {
+					if (!isInitiator && !isStarted) {
+						maybeStart();
+					}
+					pc.setRemoteDescription(new RTCSessionDescription(message));
+					doAnswer();
+				} else if (message.type === 'answer' && isStarted) {
+					pc.setRemoteDescription(new RTCSessionDescription(message));
+				} else if (message.type === 'candidate' && isStarted) {
+					var candidate = new RTCIceCandidate({candidate: message.candidate});
+					pc.addIceCandidate(candidate);
+				} else if (message === 'bye' && !isClosed) {
+					closeStream();
+				}
+			});
+			isSocketConnected = true;
+		}
+	}
+
+	function enterRoom(){
+		connect();
+		var data = {room:ROOM_NAME}; 
+		console.log('send create_or_join', data);
+		socket.emit('create_join', data);
+		navigator.getUserMedia(constraints, handleUserMedia, handleUserMediaError);
+		console.log('Getting user media with constraints', constraints);
+		showVideoControlElements(true);
+		localVideo = document.querySelector('body /deep/ #localVideo');
+		remoteVideo = document.querySelector('#bgvid');
+		isClosed = false;
+	}
+
+	function showRoomElements(show){
+		var element = document.querySelector("body /deep/ #roomElements");
+		if(show){
+			element.style.display = 'block'; 
+			showVideoControlElements(false);
+	   }
+	   else{
+			element.style.display = 'none'; 
+	   }
+	}
+
+	function showVideoControlElements(show){
+		var element = document.querySelector("body /deep/ #videoControlElements");
+		if(show){
+			element.style.display = 'block'; 
+			showRoomElements(false);
+		}
+		else{
+			element.style.display = 'none'; 
+		}
+	}
+
+
+    function sendMessage(message) {
+        console.log('Client sending message: ', message);
+		var dataToSend = {room:ROOM_NAME, message:message};
+        socket.emit('message', dataToSend);
+    }
+
+	function showMessage(message){
+		document.querySelector("body /deep/ #message").innerHTML = message;
+	}
+
+    function handleUserMedia(stream) {
+        console.log('Adding local stream.');
+        localVideo.muted="muted";
+        localVideo.src = window.URL.createObjectURL(stream);
+        localStream = stream;
+        sendMessage('got user media');
+        if (isInitiator) {
+            maybeStart();
+        }
+    }
+    function handleUserMediaError(error) {
+        console.log('navigator.getUserMedia error: ', error);
+    }
+
+    function maybeStart() {
+        if (!isStarted && typeof localStream != 'undefined' && isChannelReady) {
+            createPeerConnection();
+            pc.addStream(localStream);
+            isStarted = true;
+            console.log('isInitiator', isInitiator);
+            if (isInitiator) {
+                doCall();
+            }
+        }
+    }
+	
+    function createPeerConnection() {
+        try {
+            pc = new RTCPeerConnection(); 
+            pc.onicecandidate = handleIceCandidate;
+            pc.onaddstream = handleRemoteStreamAdded;
+            pc.onremovestream = handleRemoteStreamRemoved;
+            console.log('Created RTCPeerConnnection');
+        } catch (e) {
+            console.log('Failed to create PeerConnection, exception: ' + e.message);
+            alert('Cannot create RTCPeerConnection object.');
+            return;
+        }
+    }
+    function handleIceCandidate(event) {
+        console.log('handleIceCandidate event: ', event);
+        if (event.candidate) {
+            sendMessage({
+                type: 'candidate',
+                candidate: event.candidate.candidate});
+        } else {
+            console.log('End of candidates.');
+        }
+    }
+    function handleCreateOfferError(event) {
+        console.log('createOffer() error: ', event);
+    }
+
+     function handleCreateAnswerError(event) {
+        console.log('createAnswer() error: ', event);
+    }
+	
+    function doCall() {
+        console.log('Sending offer to peer');
+        pc.createOffer(setLocalAndSendMessage, handleCreateOfferError,sdpConstraints);
+    }
+    function doAnswer() {
+        console.log('Sending answer to peer.');
+        pc.createAnswer(setLocalAndSendMessage, handleCreateAnswerError, sdpConstraints);
+    }
+    function setLocalAndSendMessage(sessionDescription) {
+        pc.setLocalDescription(sessionDescription);
+        console.log('setLocalAndSendMessage sending message', sessionDescription);
+        sendMessage(sessionDescription);
+    }
+    function handleRemoteStreamAdded(event) {
+        console.log('Remote stream added.');
+        remoteVideo.src = window.URL.createObjectURL(event.stream);
+        remoteStream = event.stream;
+    }
+    function handleRemoteStreamRemoved(event) {
+        console.log('Remote stream removed. Event: ', event);
+    }
+
+	function hangup(){
+		console.log('Hanging up.');
+		socket.emit("hangup",ROOM_NAME);
+		closeStream();
+	}
+
+	
+    function closeStream() {
+		showMessage("");
+        console.log('close stream.');
+		isClosed = true;
+        isStarted = false;
+		isInitiator = false;
+		if(typeof pc != 'undefined' && pc != null){
+			pc.close();
+		}
+        pc = null;
+		showRoomElements(true);
+		localVideo.pause();
+		localVideo.src ="";
+		localVideo.load();
+		remoteVideo.pause();
+		remoteVideo.src = "";
+		remoteVideo.load();
+		socket.disconnect();
+		isSocketConnected = false;
+    }
+
+
+</script>
+			

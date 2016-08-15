@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>aWall</title>
+
+				
+    <!-- bower:css -->
+    <!-- endbower -->
+
+    <link rel="stylesheet" href="main.css">
+		 <script src="jquery-latest.min.js"></script>
+			 <script src="adapter-latest.js"></script>
+		 <script src="socket.io.js"></script>
+
+				
+    <!-- bower:js -->
+	
+    <script src="bower_components/interact/interact.js"></script>
+    <script src="bower_components/heir/heir.js"></script>
+    <script src="bower_components/eventEmitter/EventEmitter.js"></script>
+
+    <!-- endbower -->
+
+    <script src="bower_components/javascript-route-matcher/dist/ba-routematcher.js"></script>
+
+    <script src="core.js"></script>
+
+    <link rel="import" href="bower_components/polymer-filters/polymer-filters.html">
+
+    <link rel="import" href="elements/ads-rest.html">
+    <link rel="import" href="elements/app-core.html">
+    <link rel="import" href="elements/app-field.html">
+    <link rel="import" href="elements/app-layout.html">
+    <link rel="import" href="elements/awall-avatarcard.html">
+    <link rel="import" href="elements/awall-form.html">
+    <link rel="import" href="elements/awall-menu.html">
+    <link rel="import" href="elements/awall-taskcard.html">
+    <link rel="import" href="elements/awall-userstorycard.html">
+    <link rel="import" href="elements/awall-widget.html">
+
+	
+</head>
+<body>
+
+<style>
+video#bgvid { 
+	position: fixed;
+    top: 50%;
+    left: 50%;
+    min-width: 100%;
+    min-height: 100%;
+    width: auto;
+    height: auto;
+    z-index: -100;
+    -ms-transform: translateX(-50%) translateY(-50%);
+    -moz-transform: translateX(-50%) translateY(-50%);
+    -webkit-transform: translateX(-50%) translateY(-50%);
+    transform: translateX(-50%) translateY(-50%);
+    background: url(polina.jpg) no-repeat;
+    background-size: cover;
+}
+
+
+</style>
+
+<video autoplay id="bgvid">
+  
+</video>
+
+    
+
+				
+<script>
+    var workspaces = [
+        'projectselect',
+        'sprintselect',
+        'workspaceselect',
+        'sprintplanning2',
+        'taskboard'
+    ];
+
+    // Application is started here
+    window.addEventListener('load', function () {
+
+        workspaces.forEach(function (workspaceId) {
+            app.core.loadWorkspace(workspaceId);
+        }, this);
+
+    });
+</script>
+	
+</body>
+</html>

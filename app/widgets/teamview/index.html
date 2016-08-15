@@ -1,0 +1,33 @@
+<template class="content">
+    <awall-teamview></awall-teamview>
+</template>
+
+<polymer-element name="awall-teamview">
+    <template>
+        <style>
+            awall-avatarcard {
+                margin: 0.1em;
+            }
+        </style>
+        <awall-widget>
+            <awall-widget-title value="Team"></awall-widget-title>
+
+            <awall-widget-size-default>
+                <template repeat="{{person in people}}">
+                    <awall-avatarcard user="{{person}}"></awall-avatarcard>
+                </template>
+            </awall-widget-size-default>
+        </awall-widget>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-people id="rest" response="{{people}}" projectId="{{projectId}}"></ads-rest-people>
+    </template>
+    <script>
+        Polymer({
+            attached: function () {
+                this.projectId = this.$.globals.routeParams.projectId;
+                this.$.rest.go();
+            }
+        });
+    </script>
+</polymer-element>

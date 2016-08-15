@@ -1,0 +1,23 @@
+<polymer-element name="awall-avatarcard" attributes="user">
+    <template>
+        <style>
+            #img {
+                position: relative;
+                width: 4em;
+                height: 4em;
+            }
+        </style>
+        <img id="img" class="avatar" src="{{user.avatar}}" alt="{{user.name}}" title="{{user.name}}">
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            ready: function () {
+                var data = this.user;
+                this.touch.makeDraggable(this.$.img, {
+                    clone: true,
+                    data: data
+                });
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>

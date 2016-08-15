@@ -1,0 +1,43 @@
+<template class="content">
+    <awall-sprintinfo></awall-sprintinfo>
+</template>
+
+<polymer-element name="awall-sprintinfo">
+    <template>
+        <awall-widget>
+            <awall-widget-title value="{{sprint.name}}"></awall-widget-title>
+
+            <awall-widget-size-default>
+                <p>From {{sprint.startTime | dateFmt}} to {{sprint.endTime | dateFmt}}</p>
+            </awall-widget-size-default>
+
+            <awall-widget-size-full>
+                <h1>FULL VIEW IS SHOWN NOW !</h1>
+            </awall-widget-size-full>
+
+            <awall-widget-editable>
+                <h1>EDITABLE VIEW IS SHOWN NOW !</h1>
+            </awall-widget-editable>
+
+        </awall-widget>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-sprint id="rest" resourceId="{{sprintId}}" response="{{sprint}}"></ads-rest-sprint>
+    </template>
+    <script>
+        Polymer({
+            attached: function () {
+                this.sprintId = this.$.globals.routeParams.sprintId;
+                this.$.rest.go();
+            },
+            dateFmt: function (value) {
+                if (value == undefined) {
+                    return '';
+                }
+                var date = value.split('T')[0];
+                var parts = date.split('-');
+                return parts[2] + '.' + parts[1] + '.' + parts[0];
+            }
+        });
+    </script>
+</polymer-element>

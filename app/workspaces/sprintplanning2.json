@@ -1,0 +1,47 @@
+{
+  "name": "Sprint Planning 2 Workspace",
+  "description": "Allows to plan the sprint collaboratively.",
+  "path": "/project/:projectId/sprint/:sprintId/sp2",
+  "layout": "workspace",
+  "widgets": {
+    "sprintplanning2": {
+      "position": "main",
+      "hidden": false
+    },
+    "teamview": {
+      "position": 3,
+      "width": 1.5,
+      "hidden": false
+    },
+    "sprintinfo": {
+      "position": 1,
+      "width": 1,
+      "hidden": false
+    },
+    "dummy1": {
+      "position": 4,
+      "width": 3,
+      "hidden": true
+    },
+    "dummy2": {
+      "position": 2,
+      "width": 1,
+      "hidden": true
+    },
+    "dummy3": {
+      "position": 5,
+      "width": 1,
+      "hidden": false
+    },
+    "dummy4": {
+      "position": 6,
+      "width": 1,
+      "hidden": false
+    },
+    "vtr": {
+      "position": 4,
+      "width": 1,
+      "hidden": false
+    }
+  }
+}

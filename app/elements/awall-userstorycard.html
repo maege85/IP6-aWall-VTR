@@ -1,0 +1,91 @@
+<link rel="import" href="awall-form.html">
+
+<polymer-element name="awall-userstorycard">
+    <template>
+        <style>
+            #container {
+                float: left;
+                overflow: hidden;
+                height: 5em;
+                width: 15em;
+                padding: 0.4em;
+                margin: 0.4em;
+                background-color: #ffc473;
+                border: 2px solid;
+				color: #000;
+                box-shadow: 0.15em 0.15em 0.15em #888, 0.15em 0.15em 0.15em #888;
+            }
+
+            ul {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .circle {
+                float: right;
+                height: 2em;
+            }
+
+            .circle-content {
+                width: 2em;
+                height: 2em;
+                line-height: 2em;
+                text-align: center;
+                border-radius: 50%;
+                border: 1px solid #000000;
+            }
+        </style>
+        <div id="container" class="userstorycard">
+            <div class="circle">
+                <div class="circle-content">
+                    {{userstory.storyPoints | noNull}}
+                </div>
+            </div>
+            <ul>
+                <li><b>{{userstory.name}}</b></li>
+                <li>
+                    <small>Prio: {{userstory.priority}}</small>
+                </li>
+                <li>
+                    <small>{{userstory.description}}</small>
+                </li>
+            </ul>
+        </div>
+        <awall-form-userstory id="form" userstory="{{userstory}}"></awall-form-userstory>
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            publish: {
+                userstory: undefined,
+                /**
+                 * Switch to disable draggability of the element.
+                 *
+                 * @attribute noDrag
+                 * @type boolean
+                 * @default false
+                 */
+                noDrag: false
+            },
+            domReady: function () {
+                // make draggable
+                if (!this.noDrag) {
+                    var data = this.userstory;
+                    this.touch.makeDraggable(this.$.container, {
+                        clone: true,
+                        data: data
+                    });
+                }
+
+                // doubletap to show form
+                this.touch.onDoubletap(this.$.container, function (event) {
+                    this.$.form.open();
+                }.bind(this));
+
+            },
+            noNull: function (value) {
+                return value === null ? '-' : value;
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>

@@ -1,0 +1,357 @@
+<template class="content">
+    <awall-sp2></awall-sp2>
+</template>
+
+<polymer-element name="awall-sp2">
+    <template>
+        <style>
+            .container {
+                display: flex;
+            }
+
+            .sprintBacklog {
+                flex: 1;
+            }
+
+            .tempTasks {
+                flex: 0 0 35%;
+            }
+
+            ::shadow h3 {
+                padding-left: 0.8em;
+            }
+        </style>
+        <awall-widget noDrag noResize>
+            <h2>Sprintplanning 2</h2>
+
+            <div class="container">
+
+                <template if="{{$.globals.isSmallScreenHeight}}">
+                    <awall-userstory-cardlist userstories="{{userstories}}"></awall-userstory-cardlist>
+                </template>
+
+                <template if="{{!$.globals.isSmallScreenHeight}}">
+                    <awall-sprintbacklog userstories="{{userstories}}" class="sprintBacklog"></awall-sprintbacklog>
+                    <awall-temptasks class="tempTasks"></awall-temptasks>
+                </template>
+
+            </div>
+        </awall-widget>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-userstories id="usEndpoint" sprintId="{{sprintId}}" projectId="{{projectId}}"
+                              response="{{userstories}}"></ads-rest-userstories>
+    </template>
+    <script>
+        Polymer({
+            ready: function () {
+                this.sprintId = this.$.globals.routeParams.sprintId;
+                this.projectId = this.$.globals.routeParams.projectId;
+                this.$.usEndpoint.go();
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-userstory-cardlist" attributes="userstories">
+    <template>
+        <style>
+            core-icon-button {
+                margin: 0.65em;
+            }
+
+            core-icon-button /deep/ core-icon[role=img] {
+                height: 4em;
+                width: 4em;
+                padding: 0.4em;
+            }
+
+            #detailViewContainer {
+                display: flex;
+                flex-direction: row;
+                box-sizing: border-box;
+            }
+
+            #usView {
+                flex: 1 1 40%;
+            }
+
+            #tempTasks {
+                flex: 1 1 40%;
+            }
+
+            #header {
+                display: block;
+            }
+        </style>
+
+        <template if="{{!isDetailView}}" repeat="{{userstory in userstories | orderBy('name')}}">
+            <awall-userstorycard userstory="{{userstory}}" on-tap="{{onTap}}" noDrag></awall-userstorycard>
+        </template>
+
+        <div id="detailViewContainer" hidden?="{{!isDetailView}}">
+            <div id="usView">
+                <div id="header">
+                    <core-icon-button icon="undo" on-tap="{{closeDetailView}}"></core-icon-button>
+                    <awall-userstorycard id="selected" userstory="{{selected}}"></awall-userstorycard>
+                </div>
+                <template repeat="{{task in selectedTasks}}">
+                    <awall-taskcard task="{{task}}"></awall-taskcard>
+                </template>
+            </div>
+            <awall-temptasks id="tempTasks"></awall-temptasks>
+        </div>
+
+        <ads-rest-awall id="awall"></ads-rest-awall>
+        <ads-rest-tasks id="tasksRest" userstoryId="{{selected.id}}" response="{{selectedTasks}}"></ads-rest-tasks>
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            isDetailView: false,
+            userstory: undefined,
+            onTap: function (event, detail, target) {
+                this.selected = target.userstory;
+                this.isDetailView = true;
+                this.$.tasksRest.go();
+            },
+            closeDetailView: function () {
+                this.isDetailView = false;
+                // set to undefined so the old data is not displayed to the user.
+                this.selected = undefined;
+                this.selectedTasks = undefined;
+            },
+            isDetailViewChanged: function () {
+                if (this.isDetailView) {
+                    // activate dropzone to save temp task
+                    this.touch.makeDropzone(this.$.usView, {
+                        accept: '.taskcard',
+                        ondrop: function (e) {
+                            var droppedTask = e.draggableData;
+                            if (droppedTask.userStory != undefined) {
+                                // is existing task
+                                console.error('Moving a task to another user-story is not possible (backend limitation).');
+                            } else {
+                                // is a temporary task
+                                droppedTask.userStory = this.selected;
+                                this.$.awall.persistTempTask(droppedTask);
+                            }
+                        }.bind(this)
+                    });
+                }
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-sprintbacklog" attributes="userstories">
+    <template>
+        <style>
+            table {
+                border-collapse: collapse;
+                box-sizing: border-box;
+                margin-bottom: 0.8em;
+                width: 100%;
+            }
+
+            table /deep/ tr:nth-child(even) {
+                background-color: rgba(255, 255, 255, 0.5);
+            }
+
+            table /deep/ th {
+                border-bottom: 2px solid rgb(221, 221, 221);
+                border-collapse: collapse;
+                text-align: left;
+            }
+
+            table /deep/ td {
+                border-top: 1px solid rgb(221, 221, 221);
+                vertical-align: top;
+            }
+
+            table /deep/ td:nth-child(1) {
+                padding: 0.6em;
+                text-align: left;
+            }
+        </style>
+
+        <h3>Sprint Backlog</h3>
+        <table class="table">
+            <tbody>
+            <template repeat="{{userstory in userstories | withPriority | orderBy('priority')}}">
+                <tr is="awall-backlog-row" userstory="{{userstory}}" userstories="{{userstories}}"></tr>
+            </template>
+            </tbody>
+        </table>
+    </template>
+    <script>
+        Polymer({
+            withPriority: function (values) {
+                if (values != null) {
+                    return values.filter(function (value) {
+                        return value.priority != null;
+                    });
+                }
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-backlog-row" extends="tr" attributes="userstory userstories">
+    <template>
+        <style>
+            #usDropzone {
+                position: relative;
+                height: 10em;
+                width: 16em;
+                padding-right: 1em;
+            }
+
+            #upperDropzone, #lowerDropzone {
+                position: absolute;
+                left: 0;
+                height: 50%;
+                width: 100%;
+            }
+
+            #upperDropzone {
+                top: 0;
+            }
+
+            #lowerDropzone {
+                bottom: 0;
+            }
+
+            awall-userstorycard {
+                position: absolute;
+                z-index: 1;
+            }
+        </style>
+        <td id="usDropzone">
+            <awall-userstorycard userstory="{{userstory}}" noDrag></awall-userstorycard>
+            <div id="upperDropzone"></div>
+            <div id="lowerDropzone"></div>
+        </td>
+        <td id="taskDropzone">
+            <template repeat="{{task in tasks}}">
+                <awall-taskcard task="{{task}}"></awall-taskcard>
+            </template>
+        </td>
+
+        <ads-rest-awall id="awall"></ads-rest-awall>
+        <ads-rest-tasks userStoryId="{{userstory.id}}" response="{{tasks}}" auto expand="all"></ads-rest-tasks>
+        <ads-rest-userstory id="rest"></ads-rest-userstory>
+    </template>
+    <script>
+        Polymer(Polymer.mixin({
+            userstoriesChanged: function () {
+
+                var applyPriority = function (sourcePriority, newPriority, droppedUs, allUs) {
+
+                    function getSortedUsWithPriority(array) {
+                        return array.filter(function (value) {
+                            return value.priority != null;
+                        }).sort(function (a, b) {
+                            return a.priority >= b.priority ? 1 : -1;
+                        });
+                    }
+
+                    function reorder(array, sourcePriority, indx) {
+                        var changedItems = [];
+
+                        function check(priority, indx) {
+                            while (indx < array.length) {
+                                var item = array[indx];
+                                if (item.priority == priority) {
+                                    changedItems.push(item);
+                                    check(priority + 1, indx + 1);
+                                    item.priority += 1;
+                                } else {
+                                    break;
+                                }
+                                indx++;
+                            }
+                        }
+
+                        check(sourcePriority, indx);
+
+                        return changedItems;
+                    }
+
+
+                    var sortedUs = getSortedUsWithPriority(allUs);
+
+                    var index = sortedUs.indexOf(this.userstory);
+                    console.dir(sortedUs);
+                    if (index == -1) {
+                        console.error('index not found.');
+                        return;
+                    }
+
+                    droppedUs.priority = newPriority;
+
+                    // take appropriate action to persist changes
+                    index = sourcePriority != newPriority ? index + 1 : index;
+                    reorder(sortedUs, newPriority, index).forEach(function (item) {
+                        this.$.rest.save(item);
+                    });
+                    this.$.rest.save(droppedUs);
+                }.bind(this);
+
+                // enable dropzones
+                this.touch.makeDropzone(this.$.upperDropzone, {
+                    accept: '.userstorycard',
+                    ondrop: function (e) {
+                        var sourcePriority = this.userstory.priority;
+                        applyPriority(sourcePriority, sourcePriority, e.draggableData, this.userstories);
+                    }.bind(this)
+                });
+
+                this.touch.makeDropzone(this.$.lowerDropzone, {
+                    accept: '.userstorycard',
+                    ondrop: function (e) {
+                        var sourcePriority = this.userstory.priority;
+                        var newPriority = sourcePriority + 1;
+                        applyPriority(sourcePriority, newPriority, e.draggableData, this.userstories);
+                    }.bind(this)
+                });
+
+                this.touch.makeDropzone(this.$.taskDropzone, {
+                    accept: '.taskcard',
+                    ondrop: function (e) {
+                        var droppedTask = e.draggableData;
+                        if (droppedTask.userStory != undefined) {
+                            // is existing task
+                            console.error('Moving a task to another user-story is not possible (backend limitation).');
+                        } else {
+                            // is a temporary task
+                            droppedTask.userStory = this.userstory;
+                            this.$.awall.persistTempTask(droppedTask);
+                        }
+                    }.bind(this)
+                });
+            }
+        }, window.appMixin));
+    </script>
+</polymer-element>
+
+
+<polymer-element name="awall-temptasks">
+    <template>
+        <h3>Unassigned Tasks</h3>
+        <template repeat="{{task in tempTasks | orderBy('name')}}">
+            <awall-temp-taskcard task="{{task}}"></awall-temp-taskcard>
+        </template>
+        <awall-form-temp-task id="taskForm"></awall-form-temp-task>
+
+        <core-icon-button icon="add" on-tap="{{onAddTempTaskTap}}">Add Unassigned Task</core-icon-button>
+        <ads-rest-awall-sp2 tasks="{{tempTasks}}"></ads-rest-awall-sp2>
+    </template>
+    <script>
+        Polymer({
+            tempTasks: [],
+            onAddTempTaskTap: function () {
+                this.$.taskForm.open();
+            }
+        });
+    </script>
+</polymer-element>

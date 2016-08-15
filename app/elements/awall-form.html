@@ -1,0 +1,257 @@
+<link rel="import" href="../bower_components/core-icon-button/core-icon-button.html">
+<link rel="import" href="../bower_components/core-overlay/core-overlay.html">
+
+<link rel="import" href="app-field.html">
+<link rel="import" href="app-core.html">
+<link rel="import" href="ads-rest.html">
+
+<polymer-element name="awall-form">
+    <template>
+        <style>
+            :host {
+                width: 32em;
+                box-sizing: border-box;
+                -moz-box-sizing: border-box;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                background: white;
+                padding: 2em 3em;
+                outline: 1px solid rgba(0, 0, 0, 0.2);
+                box-shadow: 0 0.25em 1em rgba(0, 0, 0, 0.2);
+                overflow: auto;
+            }
+
+            core-icon-button {
+                float: right;
+                margin: -2em -3em;
+                height: 2em;
+            }
+        </style>
+        <core-icon-button icon="close" on-tap="{{onClose}}"></core-icon-button>
+        <core-overlay id="overlay" backdrop layered></core-overlay>
+        <content></content>
+    </template>
+    <script>
+        Polymer({
+            ready: function () {
+                this.$.overlay.target = this;
+            },
+            toggle: function () {
+                this.$.overlay.toggle();
+            },
+            onClose: function () {
+                this.$.overlay.toggle();
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-form-userstory">
+    <template>
+        <awall-form id="form">
+            <h1>{{action}} User-Story</h1>
+
+            <app-field-text label="Name" placeholder="Name of the user-story"
+                            value="{{userstory.name}}" autofocus></app-field-text>
+            <app-field-textarea label="Description" placeholder="Describe the user-story"
+                                value="{{userstory.description}}"></app-field-textarea>
+            <app-field-textarea label="Acceptance Citeria" placeholder="When is the user-story done?"
+                                value="{{userstory.acceptanceCriteria}}"></app-field-textarea>
+            <app-field-text type="number" label="Story points" value="{{userstory.storyPoints}}"></app-field-text>
+            <app-field-text type="number" label="Priority" value="{{userstory.priority}}"></app-field-text>
+            <app-field-select label="Author" placeholder="Select author" values="{{people}}"
+                              selected="{{userstory.author}}"></app-field-select>
+            <app-field-select label="Owner" placeholder="Select owner" values="{{people}}"
+                              selected="{{userstory.owner}}"></app-field-select>
+            <app-field-select label="State" placeholder="Select state" values="{{states}}"
+                              selected="{{userstory.state}}" hidden?="{{isCreate}}"></app-field-select>
+
+            <button id="save" on-tap="{{onSave}}">Save</button>
+            <button id="delete" on-tap="{{onDelete}}">Delete</button>
+        </awall-form>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-people id="restPeople" projectId="{{projectId}}" response="{{people}}"></ads-rest-people>
+        <ads-rest-userstorystates id="restStates" projectId="{{projectId}}"
+                                  response="{{states}}"></ads-rest-userstorystates>
+        <ads-rest-userstory id="restSingle"></ads-rest-userstory>
+        <ads-rest-userstories id="restCollection"></ads-rest-userstories>
+    </template>
+    <script>
+        Polymer({
+            publish: {
+                userstory: {},
+                sprint: null,
+                isCreate: false
+            },
+            ready: function () {
+                this.projectId = this.$.globals.routeParams.projectId;
+                this.sprintId = this.$.globals.routeParams.sprintId;
+                if (this.sprintId !== undefined) {
+                    this.sprint = {
+                        id: this.sprintId
+                    };
+                }
+            },
+            open: function () {
+                this.$.restPeople.go();
+                this.$.restStates.go();
+
+                this.isCreate = this.userstory.id === undefined;
+                this.action = this.isCreate ? 'Create' : 'Edit';
+                this.$.delete.hidden = this.isCreate;
+                if (this.isCreate) {
+                    if (this.sprint === null) {
+                        console.error('Sprint must not be null.');
+                        return;
+                    }
+                    this.userstory.sprint = this.sprint;
+                }
+
+                this.$.form.toggle();
+            },
+            onSave: function () {
+                if (this.isCreate) {
+                    this.$.restCollection.create(this.userstory);
+                } else {
+                    this.$.restSingle.save(this.userstory);
+                }
+
+                this.$.form.toggle();
+            },
+            onDelete: function () {
+                console.log('Deleting the us');
+                this.$.restSingle.remove(this.userstory);
+                this.$.form.toggle();
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-form-task">
+    <template>
+        <awall-form id="form">
+            <h1>{{action}} Task</h1>
+
+            <app-field-text label="Name" placeholder="Name of the task" value="{{task.name}}"
+                            autofocus></app-field-text>
+            <app-field-textarea label="Description" placeholder="Describe the user-story"
+                                value="{{task.description}}"></app-field-textarea>
+            <app-field-text type="number" label="Estimate" placeholder="Estimated work"
+                            value="{{task.estimate}}"></app-field-text>
+            <app-field-text type="number" label="Time spent" placeholder="Time spent on this task"
+                            value="{{task.timeSpent}}"></app-field-text>
+            <app-field-select label="Author" placeholder="Author of the task" selected="{{task.author}}"
+                              values="{{people}}"></app-field-select>
+            <app-field-select label="Assignee" placeholder="Assigned person" selected="{{task.assignee}}"
+                              values="{{people}}"></app-field-select>
+            <app-field-select label="State" placeholder="State of the task" selected="{{task.state}}"
+                              values="{{states}}" hidden?="{{isCreate}}"></app-field-select>
+            <app-field-select label="User-Story" placeholder="Assign to user-story" selected="{{task.userStory}}"
+                              values="{{userstories}}" disabled></app-field-select>
+
+            <button id="save" on-tap="{{onSave}}">Save</button>
+            <button id="delete" on-tap="{{onDelete}}">Delete</button>
+        </awall-form>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-people id="restPeople" projectId="{{projectId}}" response="{{people}}"></ads-rest-people>
+        <ads-rest-taskstates id="restStates" projectId="{{projectId}}"
+                             response="{{states}}"></ads-rest-taskstates>
+        <ads-rest-userstories id="restUs" sprintId="{{sprintId}}" projectId="{{projectId}}" response="{{userstories}}"></ads-rest-userstories>
+        <ads-rest-task id="restSingle"></ads-rest-task>
+        <ads-rest-tasks id="restCollection"></ads-rest-tasks>
+    </template>
+    <script>
+        Polymer({
+            publish: {
+                task: {},
+                userstory: null,
+                isCreate: false
+            },
+            ready: function () {
+                this.projectId = this.$.globals.routeParams.projectId;
+                this.sprintId = this.$.globals.routeParams.sprintId;
+            },
+            open: function () {
+                this.$.restPeople.go();
+                this.$.restStates.go();
+                this.$.restUs.go();
+
+                this.isCreate = this.task.id === undefined;
+                this.$.delete.hidden = this.isCreate;
+                this.action = this.isCreate ? 'Create' : 'Edit';
+
+                if (this.isCreate) {
+                    if (this.userstory === null) {
+                        console.error('UserStory must not be null.');
+                        return;
+                    }
+                    this.task.userstory = this.userstory;
+                }
+
+                this.$.form.toggle();
+            },
+            onSave: function () {
+                if (this.isCreate) {
+                    this.$.restCollection.create(this.task);
+                } else {
+                    this.$.restSingle.save(this.task);
+                }
+
+                this.$.form.toggle();
+            },
+            onDelete: function () {
+                console.log('Deleting the task');
+                this.$.restSingle.remove(this.task);
+                this.$.form.toggle();
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="awall-form-temp-task">
+    <template>
+        <awall-form id="form">
+            <h1>Create Temp Task</h1>
+
+            <app-field-text label="Name" placeholder="Name of the task" value="{{task.name}}"
+                            autofocus></app-field-text>
+            <app-field-textarea label="Description" placeholder="Describe the user-story"
+                                value="{{task.description}}"></app-field-textarea>
+            <app-field-text type="number" label="Estimate" placeholder="Estimated work"
+                            value="{{task.estimate}}"></app-field-text>
+
+            <button id="save" on-tap="{{onSave}}">Save</button>
+            <button id="delete" on-tap="{{onDelete}}">Delete</button>
+        </awall-form>
+
+        <app-core id="globals"></app-core>
+        <ads-rest-awall id="awall"></ads-rest-awall>
+    </template>
+    <script>
+        Polymer({
+            publish: {
+                task: {},
+                isCreate: false
+            },
+            open: function () {
+                this.isCreate = this.task.id === undefined;
+                this.$.delete.hidden = this.isCreate;
+                if (this.isCreate) {
+                    this.task = {};
+                }
+
+                this.$.form.toggle();
+            },
+            onSave: function () {
+                this.$.awall.createTempTask(this.task);
+                this.$.form.toggle();
+            },
+            onDelete: function () {
+                this.$.awall.deleteTempTask(this.task);
+                this.$.form.toggle();
+            }
+        });
+    </script>
+</polymer-element>

@@ -1,0 +1,772 @@
+<link rel="import" href="../bower_components/core-ajax/core-ajax.html">
+
+<polymer-element name="ads-rest-base" hidden>
+    <script>
+        (function () {
+            // these variables are shared by all instances
+            var awallUrl = 'wss://www.cs.technik.fhnw.ch/awall/';
+            var awallEndpoint = null;
+
+            var timedOut = false;
+
+
+            function connect() {
+                if(awallEndpoint !== null) {
+                    // unregister callbacks and close the previous connection
+                    awallEndpoint.onclose = null;
+                    awallEndpoint.onopen = null;
+                    awallEndpoint.onmessage = null;
+                    awallEndpoint.onerror = null;
+                    awallEndpoint.close();
+                }
+
+                awallEndpoint = new WebSocket(awallUrl);
+
+                awallEndpoint.onopen = function () {
+                    console.log('WebSocket connected');
+                };
+                awallEndpoint.onmessage = function (evt) {
+                    var message = JSON.parse(evt.data);
+                    console.log('New WebSocket-message: ' + message.resourceType + ': ' + message.action);
+                    console.dir(message);
+
+                    var type = message.resourceType;
+                    if (!observers.hasOwnProperty(type)) {
+                        console.log('No observers are listening for changes of type ' + type);
+                        return;
+                    }
+                    observers[type].forEach(function (observer) {
+                        observer(message);
+                    });
+                };
+                awallEndpoint.onerror = function (evt) {
+                    console.log(evt.message);
+                };
+                awallEndpoint.onclose = function () {
+                    console.log('WebSocket disconnected');
+                    if (!timedOut){
+                        console.log('Trying to reconnect');
+                        connect();
+                    }
+                    else {
+                        console.log('Stopped attempting to reconnect, connection has timed out');
+                    }
+                };
+            }
+
+            function send(message) {
+                var wait = 100;
+                var timeoutId;
+
+                function doSend() {
+                    if (awallEndpoint !== null && awallEndpoint.readyState == WebSocket.OPEN) {
+                        awallEndpoint.send(message);
+                    } else {
+                        console.log('Cannot send: Connection is closed. Trying again in ' + wait + 'ms.');
+                        connect();
+                        if (wait < 2100){
+                            timeoutId = setTimeout(doSend, wait);
+                        }
+                        else {
+                            clearTimeout(timeoutId);
+                            timedOut = true;
+                        }
+                        wait += 250;
+                    }
+                }
+
+                doSend();
+            }
+
+            var observers = {};
+
+            function registerObserver(resource, observer) {
+                if (!observers.hasOwnProperty(resource)) {
+                    observers[resource] = [];
+                    observers[resource].push(observer);
+                } else if (!(observer in observers[resource])) {
+                    observers[resource].push(observer);
+                }
+            }
+
+            Polymer({
+                ready: function () {
+                    if ('resourceType' in this) {
+                        this.registerObserverFor(this.resourceType);
+                    }
+                    if (this.auto) {
+                        this.go();
+                    }
+                },
+                /**
+                 * Registers the onDataChanged method for the given resource type.
+                 * @param resourceType The type for which to get events.
+                 */
+                registerObserverFor: function (resourceType) {
+                    if ('onDataChanged' in this) {
+                        registerObserver(resourceType, this.onDataChanged.bind(this));
+                    } else {
+                        console.error('No onDataChanged-function available.');
+                    }
+                },
+                /**
+                 *  Sets the parameters for the query.
+                 * @param params Map of parameter name and value
+                 */
+                setParams: function (params) {
+                    if (params === undefined) {
+                        params = Object.create(null);
+                    }
+                    if (this.expand !== undefined) {
+                        params.expand = this.expand;
+                    }
+                    this.params = JSON.stringify(params);
+                },
+                /**
+                 * Callback called when something happened on the server and we are notified.
+                 * @param event
+                 */
+                onDataChanged: function (event) {
+                    if (this.response === null || this.response === undefined) {
+                        return;
+                    }
+                    switch (event.action) {
+                        case 'Updated':
+                            if (event.data === null) {
+                                console.error('data-property was null but should not be.');
+                                return;
+                            }
+                            if (!('onUpdated' in this)) {
+                                console.error('No onUpdated function available.');
+                                return;
+                            }
+                            this.onUpdated(event.data);
+                            break;
+                        case 'Created':
+                            console.log('Created');
+                            if (event.data === null) {
+                                console.error('data-property was null but should not be.');
+                                return;
+                            }
+                            // only collections
+                            if (this.response.constructor === Array) {
+                                if (!('onCreated' in this)) {
+                                    console.error('No onCreated function available.');
+                                    return;
+                                }
+                                this.onCreated(event.data);
+                            }
+                            break;
+                        case 'Deleted':
+                            console.log('Deleted');
+                            if (event.data === null) {
+                                console.error('data-property was null but should not be.');
+                                return;
+                            }
+                            // only collections
+                            if (this.response.constructor === Array) {
+                                if (!('onDeleted' in this)) {
+                                    console.error('No onDeleted function available.');
+                                    return;
+                                }
+                                this.onDeleted(event.data);
+                            }
+                            break;
+                    }
+                },
+                /**
+                 * Sends a message to the awall controller via WebSocket.
+                 * @param data The object to send. Will be converted to JSON.
+                 */
+                send: function (data) {
+                    var json = JSON.stringify(data);
+                    send(json);
+                }
+            });
+        })();
+    </script>
+</polymer-element>
+
+
+<polymer-element name="ads-rest-awall" extends="ads-rest-base">
+    <script>
+        Polymer({
+            /**
+             * Create a temporary task.
+             * @param task The task to create.
+             */
+            createTempTask: function (task) {
+                this.send({
+                    'action': 'CreateTemp',
+                    'resourceType': 'Task',
+                    'data': task
+                });
+            },
+            /**
+             * Delete a temporary task.
+             * @param task The task to delete.
+             */
+            deleteTempTask: function (task) {
+                this.send({
+                    'action': 'DeleteTemp',
+                    'resourceType': 'Task',
+                    'data': task
+                });
+            },
+            /**
+             * Persist a temporary task.
+             * @param task The task to persist.
+             */
+            persistTempTask: function (task) {
+                this.send({
+                    'action': 'PersistTemp',
+                    'resourceType': 'Task',
+                    'data': task
+                });
+            },
+            /**
+             * Get all temporary tasks.
+             */
+            getAllTempTasks: function () {
+                this.send({
+                    'action': 'GetAllTemp',
+                    'resourceType': 'Task'
+                });
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-awall-sp2" extends="ads-rest-awall">
+    <script>
+        Polymer({
+            publish: {
+                tasks: []
+            },
+            ready: function () {
+                this.registerObserverFor('Task');
+                this.getAllTempTasks();
+            },
+            /**
+             * Overwritten callback to handle events.
+             * @param event
+             */
+            onDataChanged: function (event) {
+                function isTask(data) {
+                    return data.resourceType == 'Task';
+                }
+
+                switch (event.action) {
+                    case 'CreatedTemp':
+                        console.log('Created temp');
+                        if (isTask(event)) {
+                            this.tasks.push(event.data);
+                        }
+                        break;
+                    case 'DeletedTemp':
+                        console.log('Deleted temp');
+                        if (isTask(event)) {
+                            this.tasks.forEach(function (task, index, array) {
+                                if (event.data.name == task.name) {
+                                    array.splice(index, 1);
+                                }
+                            });
+                        }
+                        break;
+                    case 'GetAllTemp':
+                        console.log('Get all temp');
+                        if (isTask(event)) {
+                            this.tasks = event.data;
+                        }
+                        break;
+                }
+                /*
+                 * Copy array so polymer detects the change for sure.
+                 * Without this, the changes will not be detected if a filter is used.
+                 */
+                this.tasks = this.tasks.slice();
+            }
+        });
+    </script>
+</polymer-element>
+
+
+<polymer-element name="ads-rest-collection" extends="ads-rest-base" hidden>
+    <template>
+        <core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/agilewall/api/{{resource}}" handleAs="json"
+                   params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>
+    </template>
+    <script>
+        (function () {
+            Polymer({
+                publish: {
+                    /**
+                     * The url part that names the resource (e.g. tasks like in example.com/api/tasks)
+                     */
+                    resource: undefined,
+                    /**
+                     * The expand query-parameter.
+                     */
+                    expand: undefined,
+                    /**
+                     * The response from the request.
+                     */
+                    response: [],
+                    /**
+                     * If true, the query will be fired as son as the element is ready.
+                     */
+                    auto: false
+                },
+                onLoaded: function () {
+                    this.response = this.$.ajax.response.items;
+                },
+                onUpdated: function (data) {
+                    if (this.response !== null && this.response.length > 0) {
+                        if (!('isInTheSameCollection' in this)) {
+                            console.error('Missing isInTheSameCollection function for ' + this);
+                            return;
+                        }
+
+                        var wasInTheCollection = false;
+                        for (var index = 0; index < this.response.length; index++) {
+                            if (data.id === this.response[index].id) {
+                                wasInTheCollection = true;
+                                if (this.isInTheSameCollection(data)) {
+                                    // Update of scalar properties.
+                                    this.response[index] = data;
+                                } else {
+                                    // Update removes it from this collection.
+                                    this.response.splice(index, 1);
+                                }
+                                break;
+                            }
+                        }
+
+                        // if it was not in the appropriate collection
+                        if (!wasInTheCollection && this.isInTheSameCollection(data)) {
+                            this.response.push(data);
+                        }
+
+                        /*
+                         * Copy array so polymer detects the change for sure.
+                         * Without this, the changes will not be detected if a filter is used.
+                         */
+                        this.response = this.response.slice();
+                    }
+
+                },
+                onCreated: function (data) {
+                    if (this.response === null) {
+                        this.response = [];
+                    }
+                    if (!('isInTheSameCollection' in this)) {
+                        console.error('Missing isInTheSameCollection function for ' + this);
+                        return;
+                    }
+                    if (this.isInTheSameCollection(data)) {
+                        this.response.push(data);
+                        /*
+                         * Copy array so polymer detects the change for sure.
+                         * Without this, the changes will not be detected if a filter is used.
+                         */
+                        this.response = this.response.slice();
+                    }
+                },
+                onDeleted: function (data) {
+                    if (this.response !== null && this.response.length > 0) {
+                        if (!('isInTheSameCollection' in this)) {
+                            console.error('Missing isInTheSameCollection function for ' + this);
+                            return;
+                        }
+                        if (this.isInTheSameCollection(data)) {
+                            for (var index = 0; index < this.response.length; index++) {
+                                if (this.response[index].id == data.id) {
+                                    this.response.splice(index, 1);
+                                }
+                            }
+                            /*
+                             * Copy array so polymer detects the change for sure.
+                             * Without this, the changes will not be detected if a filter is used.
+                             */
+                            this.response = this.response.slice();
+                        }
+                    }
+                },
+                go: function () {
+                    this.$.ajax.go();
+                },
+                /**
+                 * Creates a resource on the server with an POST request.
+                 * @param resource The resource to create.
+                 */
+                create: function (resource) {
+                    if (resource.id !== undefined) {
+                        console.error("Can't create a resource that already has an ID.");
+                        return;
+                    }
+                    var ajax = this.$.ajax;
+                    ajax.method = 'POST';
+                    ajax.contentType = 'application/json;charset=UTF-8';
+                    ajax.body = JSON.stringify(resource);
+                    ajax.go();
+                }
+            });
+        })();
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-people" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                expand: undefined,
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({project: this.projectId});
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                return !(this.projectId !== undefined && data.project.id != this.projectId);
+            },
+            resource: 'people',
+            resourceType: 'Person'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-sprints" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                expand: undefined,
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({project: this.projectId});
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                return !(this.projectId !== undefined && data.project.id != this.projectId);
+
+            },
+            resource: 'sprints',
+            resourceType: 'Sprint'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-userstories" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                expand: undefined,
+                authorId: undefined,
+                ownerId: undefined,
+                sprintId: undefined,
+                stateId: undefined,
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    author: this.authorId,
+                    owner: this.ownerId,
+                    sprint: this.sprintId,
+                    state: this.stateId,
+                    projectId: this.projectId
+                });
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                if (this.authorId !== undefined && data.author.id != this.authorId) {
+                    return false;
+                }
+                if (this.ownerId !== undefined && data.owner.id != this.ownerId) {
+                    return false;
+                }
+                if (this.sprintId !== undefined && data.sprint.id != this.sprintId) {
+                    return false;
+                }
+                if (this.stateId !== undefined && data.state.id != this.stateId) {
+                    return false;
+                }
+                if (this.projectId !== undefined && data.project.id != this.projectId) {
+                    return true;
+                }
+            },
+            resource: 'userstories',
+            resourceType: 'UserStory'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-tasks" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                expand: undefined,
+                authorId: undefined,
+                assigneeId: undefined,
+                userStoryId: undefined,
+                stateId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    author: this.authorId,
+                    assignee: this.assigneeId,
+                    userStory: this.userStoryId,
+                    state: this.stateId
+                });
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                if (this.authorId !== undefined && data.author.id != this.authorId) {
+                    return false;
+                }
+                if (this.assigneeId !== undefined && data.assignee.id != this.assigneeId) {
+                    return false;
+                }
+                if (this.userStoryId !== undefined && data.userStory.id != this.userStoryId) {
+                    return false;
+                }
+                if (this.stateId !== undefined && data.state.id != this.stateId) {
+                    return false;
+                }
+                return true;
+            },
+            resource: 'tasks',
+            resourceType: 'Task'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-taskstates" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                projectId: undefined,
+                taskId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    project: this.projectId,
+                    task: this.taskId
+                });
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                if (this.projectId !== undefined && data.project.id != this.projectId) {
+                    return false;
+                }
+                if (this.taskId !== undefined && data.task.id != this.taskId) {
+                    return false;
+                }
+                return true;
+            },
+            resource: 'taskStates',
+            resourceType: 'TaskState'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-userstorystates" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                projectId: undefined,
+                userStoryId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    project: this.projectId,
+                    userStory: this.userStoryId
+                });
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                if (this.projectId !== undefined && data.project.id != this.projectId) {
+                    return false;
+                }
+                if (this.userStoryId !== undefined && data.userStory.id != this.userStoryId) {
+                    return false;
+                }
+                return true;
+            },
+            resource: 'userStoryStates',
+            resourceType: 'UserStoryState'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-single" extends="ads-rest-base" hidden>
+    <template>
+        <core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/agilewall/api/{{resource}}/{{resourceId}}"
+                   handleAs="json"
+                   params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>
+    </template>
+    <script>
+        Polymer({
+            publish: {
+                /**
+                 * The url part that names the resource (e.g. tasks like in example.com/api/tasks)
+                 */
+                resource: undefined,
+                /**
+                 * The id of the resource (e.g. 22 like in example.com/api/tasks/22)
+                 */
+                resourceId: undefined,
+                /**
+                 * The response from the request.
+                 */
+                response: {},
+                /**
+                 * The expand query-parameter.
+                 */
+                expand: undefined,
+                /**
+                 * If true, the query will be fired as son as the element is ready.
+                 */
+                auto: false
+            },
+            onLoaded: function () {
+                this.response = this.$.ajax.response;
+            },
+            onUpdated: function (data) {
+                if (this.response.id === data.id) {
+                    this.response = data;
+                }
+            },
+            go: function () {
+                this.setParams();
+                this.$.ajax.go();
+            },
+            /**
+             *  Saves a resource with a PUT request
+             *  @param resource The resource to update.
+             */
+            save: function (resource) {
+                if (resource.id === undefined) {
+                    console.error("Can't update a resource without an ID!");
+                    return;
+                }
+
+                // set ID because it may not be set yet if called by JS
+                this.resourceId = resource.id;
+
+                /*
+                 * Set all arrays to null, because 1:n relationships cannot be updated this way
+                 * and the request will fail.
+                 */
+                for (var attribute in resource) {
+                    if (resource[attribute] instanceof Array) {
+                        resource[attribute] = null;
+                    }
+                }
+
+                var ajax = this.$.ajax;
+                ajax.method = 'PUT';
+                ajax.contentType = 'application/json;charset=UTF-8';
+                ajax.body = JSON.stringify(resource);
+                ajax.go();
+            },
+            /**
+             * Delete a resource on the server.
+             * @param resource The resource to delete.
+             */
+            remove: function (resource) {
+                if (resource.id === undefined) {
+                    console.error("Can't delete a resource without an ID!");
+                    return;
+                }
+                // set ID because it may not be set yet if called by JS
+                this.resourceId = resource.id;
+
+                var ajax = this.$.ajax;
+                ajax.method = 'DELETE';
+                ajax.go();
+            }
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-project" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'projects',
+            resourceType: 'Project'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-sprint" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'sprints',
+            resourceType: 'Sprint'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-person" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'people',
+            resourceType: 'Person'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-userstory" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'userstories',
+            resourceType: 'UserStory'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-task" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'tasks',
+            resourceType: 'Task'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-taskstate" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'taskStates',
+            resourceType: 'TaskState'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-userstorystate" extends="ads-rest-single">
+    <script>
+        Polymer({
+            resource: 'userStoryStates',
+            resourceType: 'UserStoryState'
+        });
+    </script>
+</polymer-element>
+
+<polymer-element name="ads-rest-boardWorkflow" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    project: this.projectId
+                });
+                this.super();
+            },
+            resource: 'boardWorkflow',
+            resourceType: 'TaskState'
+
+        });
+    </script>
+</polymer-element>
