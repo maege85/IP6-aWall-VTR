@@ -26,6 +26,11 @@
       "position": 4,
       "width": 1,
       "hidden": false
+    },
+    "fun": {
+      "position": 5,
+      "width": 2,
+      "hidden": false
     }
   }
 }

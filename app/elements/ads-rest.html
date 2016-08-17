@@ -4,10 +4,9 @@
     <script>
         (function () {
             // these variables are shared by all instances
-            var awallUrl = 'wss://www.cs.technik.fhnw.ch/awall/';
+            //var awallUrl = 'wss://www.cs.technik.fhnw.ch/awall/';
+            var awallUrl = 'wss://www.cs.technik.fhnw.ch/awall2/';
             var awallEndpoint = null;
-
-            var timedOut = false;
 
 
             function connect() {
@@ -44,33 +43,21 @@
                 };
                 awallEndpoint.onclose = function () {
                     console.log('WebSocket disconnected');
-                    if (!timedOut){
-                        console.log('Trying to reconnect');
-                        connect();
-                    }
-                    else {
-                        console.log('Stopped attempting to reconnect, connection has timed out');
-                    }
+                    connect();
                 };
             }
 
             function send(message) {
                 var wait = 100;
-                var timeoutId;
 
                 function doSend() {
                     if (awallEndpoint !== null && awallEndpoint.readyState == WebSocket.OPEN) {
                         awallEndpoint.send(message);
                     } else {
+                        //TODO: Time out eventually
                         console.log('Cannot send: Connection is closed. Trying again in ' + wait + 'ms.');
                         connect();
-                        if (wait < 2100){
-                            timeoutId = setTimeout(doSend, wait);
-                        }
-                        else {
-                            clearTimeout(timeoutId);
-                            timedOut = true;
-                        }
+                        setTimeout(doSend, wait);
                         wait += 250;
                     }
                 }
@@ -293,8 +280,10 @@
 
 <polymer-element name="ads-rest-collection" extends="ads-rest-base" hidden>
     <template>
-        <core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/agilewall/api/{{resource}}" handleAs="json"
+        <core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/awall2/api/{{resource}}" handleAs="json"
                    params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>
+        <!--<core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/agilewall/api/{{resource}}" handleAs="json"-->
+                   <!--params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>-->
     </template>
     <script>
         (function () {
@@ -598,8 +587,32 @@
     </script>
 </polymer-element>
 
+<polymer-element name="ads-rest-pictures" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                expand: undefined,
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({project: this.projectId, limit: 15});
+                this.super();
+            },
+            isInTheSameCollection: function (data) {
+                return !(this.projectId !== undefined && data.project.id != this.projectId);
+
+            },
+            resource: 'pictures',
+            resourceType: 'Picture'
+        });
+    </script>
+</polymer-element>
+
 <polymer-element name="ads-rest-single" extends="ads-rest-base" hidden>
     <template>
+        <!--<core-ajax id="ajax" url="https://server1095.cs.technik.fhnw.ch/api/{{resource}}/{{resourceId}}"-->
+                   <!--handleAs="json"-->
+                   <!--params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>-->
         <core-ajax id="ajax" url="https://www.cs.technik.fhnw.ch/agilewall/api/{{resource}}/{{resourceId}}"
                    handleAs="json"
                    params="{{params}}" on-core-response="{{onLoaded}}"></core-ajax>
@@ -748,25 +761,6 @@
         Polymer({
             resource: 'userStoryStates',
             resourceType: 'UserStoryState'
-        });
-    </script>
-</polymer-element>
-
-<polymer-element name="ads-rest-boardWorkflow" extends="ads-rest-collection">
-    <script>
-        Polymer({
-            publish: {
-                projectId: undefined
-            },
-            go: function () {
-                this.setParams({
-                    project: this.projectId
-                });
-                this.super();
-            },
-            resource: 'boardWorkflow',
-            resourceType: 'TaskState'
-
         });
     </script>
 </polymer-element>

@@ -204,13 +204,14 @@
                         this.hideRevertToDock = false;
                     }.bind(this);
 
-                    var onDragEnd = function (event) {
-                        this.hideRevertToDock = event.interaction.dropped;
-                        if (this.dockedStateChange) {
-                            this.floatingInitialSize = this.getRealWidgetSize();
-                            this.dockedStateChange = false;
-                        }
-                    }.bind(this);
+					var onDragEnd = function (event) {
+					this.hideRevertToDock = event.interaction.dropped;
+					if (this.dockedStateChange) {
+					this.floatingInitialSize = this.getRealWidgetSize();
+					this.dockedStateChange = false;
+					}
+					this.fire("dragEnded");
+					}.bind(this);
 
                     var onDragDrop = function () {
                         this.onDockAction();
@@ -242,9 +243,10 @@
                         }
                     }.bind(this);
 
-                    var onResizeEnd = function () {
-                        this.hideResizeToInitial = this.isInitialSize();
-                    }.bind(this);
+					 var onResizeEnd = function () {
+					 this.hideResizeToInitial = this.isInitialSize();
+					 this.fire('resizeEnded');
+					 }.bind(this);
 
 
                     this.touch.makeResizable(widget, {
