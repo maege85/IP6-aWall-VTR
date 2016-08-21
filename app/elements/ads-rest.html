@@ -756,6 +756,25 @@
     </script>
 </polymer-element>
 
+<polymer-element name="ads-rest-boardWorkflow" extends="ads-rest-collection">
+    <script>
+        Polymer({
+            publish: {
+                projectId: undefined
+            },
+            go: function () {
+                this.setParams({
+                    project: this.projectId
+                });
+                this.super();
+            },
+            resource: 'boardWorkflow',
+            resourceType: 'TaskState'
+
+        });
+    </script>
+</polymer-element>
+
 <polymer-element name="ads-rest-userstorystate" extends="ads-rest-single">
     <script>
         Polymer({
